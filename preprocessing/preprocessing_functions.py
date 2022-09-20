@@ -232,6 +232,8 @@ def normalize_input_train(X_train, reshaped = True, norm = "standard", save_file
         inp_sub = train_min
         inp_div = train_max - train_min
         
+    inp_div[inp_div==0] = 1
+
     #normalizing
     X_train = ((X_train - inp_sub)/inp_div).transpose()
     #normalized
