@@ -94,18 +94,22 @@ def make_nn_input(spData, family, subsample = True, spacing = 8, contiguous = Tr
             qv = nnqbp[:, :, latIndex, lonIndex]
             newhum[:,:, latIndex, lonIndex] = Rv*p*qv/(R*esat(T))
     
-    nntbp = np.moveaxis(nntbp[1:,:,:,:],0,1)
+    nntbp = np.moveaxis(nntbp[1:,:,:,:],0,1) 
     nnqbp = np.moveaxis(nnqbp[1:,:,:,:],0,1)
-    lhflx = spData["LHFLX"].values[np.newaxis,:-1,:,:]
-    shflx = spData["SHFLX"].values[np.newaxis,:-1,:,:]
+    tphystnd = np.moveaxis(tphystnd[:-1,:,:,:],0,1) #previous timestep
+    phq = np.moveaxis(phq[:-1,:,:,:],0,1) #previous timestep
     ps = spData["NNPS"].values[np.newaxis,1:,:,:]
-    solin = spData["SOLIN"].values[np.newaxis,1:,:,:]    
-    newhum = np.moveaxis(newhum[1:,:,:,:],0,1)    
-    oldhum = np.moveaxis(relhum[1:,:,:,:],0,1)
+    solin = spData["SOLIN"].values[np.newaxis,1:,:,:]
+    shflx = spData["SHFLX"].values[np.newaxis,:-1,:,:]    
+    lhflx = spData["LHFLX"].values[np.newaxis,:-1,:,:]
+    
+    newhum = np.moveaxis(newhum[1:,:,:,:],0,1)   
 
     if family == "specific":
         nnInput = np.concatenate((nntbp, \
                                   nnqbp, \
+                                  tphystnd, \
+                                  phq, \
                                   ps, \
                                   solin, \
                                   shflx, \
@@ -114,6 +118,8 @@ def make_nn_input(spData, family, subsample = True, spacing = 8, contiguous = Tr
     elif family == "relative":
         nnInput = np.concatenate((nntbp, \
                                   newhum, \
+                                  tphystnd, \
+                                  phq, \
                                   ps, \
                                   solin, \
                                   shflx, \
@@ -126,18 +132,23 @@ def make_nn_input(spData, family, subsample = True, spacing = 8, contiguous = Tr
         nnInput = nnInput[:,:,:,sample_indices(nnInput.shape[3], spacing, True)]
         
     if print_diagnostics:
+        oldhum = np.moveaxis(relhum[1:,:,:,:],0,1)
         print("nntbp")
         print(nntbp.shape)
         print("nnqbp")
         print(nnqbp.shape)
-        print("lhflx")
-        print(lhflx.shape)
-        print("shflx")
-        print(shflx.shape)
+        print("tphystnd")
+        print(tphystnd.shape)
+        print("phq")
+        print(phq.shape)
         print("ps")
         print(ps.shape)
         print("solin")
         print(solin.shape)
+        print("shflx")
+        print(shflx.shape)
+        print("lhflx")
+        print(lhflx.shape)
         print("newhum")
         print(newhum.shape)
         print("oldhum")
@@ -149,10 +160,12 @@ def make_nn_input(spData, family, subsample = True, spacing = 8, contiguous = Tr
         result = result + "Variance for relative humidity conversion error: " + str(np.var(errors)) + "\n"
         result = result + "nntbp.shape: " + str(nntbp.shape) + "\n"
         result = result + "nnqbp.shape: " + str(nnqbp.shape) + "\n"
-        result = result + "lhflx.shape: " + str(lhflx.shape) + "\n"
-        result = result + "shflx.shape: " + str(shflx.shape) + "\n"
+        result = result + "tphystnd.shape" + str(tphystnd.shape) + "\n"
+        result = result + "phq.shape" + str(phq.shape) + "\n"
         result = result + "ps.shape: " + str(ps.shape) + "\n"
         result = result + "solin.shape: " + str(solin.shape) + "\n"
+        result = result + "shflx.shape: " + str(shflx.shape) + "\n"
+        result = result + "lhflx.shape: " + str(lhflx.shape) + "\n"
         result = result + "newhum.shape: " + str(newhum.shape) + "\n"
         result = result + "oldhum.shape: " + str(oldhum.shape) + "\n"
         result = result + "nnInput.shape: " + str(nnInput.shape) + "\n"
@@ -190,7 +203,7 @@ def combine_arrays(*args, contiguous = True):
     return(np.concatenate((args), axis = 1))
 
 def reshape_input(nnData, subsample = False, spacing = 8):
-    return nnData.ravel(order = 'F').reshape(64,-1,order = 'F')
+    return nnData.ravel(order = 'F').reshape(124,-1,order = 'F')
 
 def reshape_target(nnData, subsample = False, spacing = 8):
     if subsample:
