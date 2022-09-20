@@ -2,7 +2,7 @@
 #SBATCH --job-name="JOB_NAME_HERE"
 #SBATCH --output="logs/srun-kerastuner-%j.%N.out"
 #SBATCH --partition=GPU-shared
-#SBATCH --gpus=v100-16:4
+#SBATCH --gpus=v100-32:4
 #SBATCH --ntasks=5
 #SBATCH --export=ALL
 #SBATCH --account=atm200007p

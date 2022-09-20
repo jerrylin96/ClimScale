@@ -68,6 +68,8 @@ def sample_indices(size, spacing, fixed = True):
 def make_nn_input(spData, family, subsample = True, spacing = 8, contiguous = True, print_diagnostics = False):
     nntbp = spData["NNTBP"].values
     nnqbp = spData["NNQBP"].values
+    tphystnd = spData["TPHYSTND"].values
+    phq = spData["PHQ"].values
     p0 = spData["P0"].values
     ps = spData["NNPS"].values
     hyam = spData["hyam"].values
@@ -231,7 +233,7 @@ def normalize_input_train(X_train, reshaped = True, norm = "standard", save_file
     elif norm == "range":
         inp_sub = train_min
         inp_div = train_max - train_min
-        
+
     inp_div[inp_div==0] = 1
 
     #normalizing
