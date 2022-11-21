@@ -4,9 +4,38 @@ from keras.layers import Dense
 from keras.layers import BatchNormalization
 from keras.layers import LeakyReLU
 from keras.layers import Dropout
+from keras import backend as K
 import tensorflow_addons as tfa
 from qhoptim.tf import QHAdamOptimizer
 import os
+
+def gaussian_nll(ytrue, ypreds):
+    """Keras implmementation of multivariate Gaussian negative loglikelihood loss function. 
+    This implementation implies diagonal covariance matrix and ignores constant term.
+    
+    Parameters
+    ----------
+    ytrue: tf.tensor of shape [n_samples, n_dims]
+        ground truth values
+    ypreds: tf.tensor of shape [n_samples, n_dims*2]
+        predicted mu and logsigma values (e.g. by your neural network)
+        
+    Returns
+    -------
+    neg_log_likelihood: float
+        negative loglikelihood averaged over samples (without constant term)
+        
+    This loss can then be used as a target loss for any keras model, e.g.:
+        model.compile(loss=gaussian_nll, optimizer='Adam') 
+    
+    """
+    mu = ypreds[:, 0:60]
+    logsigma = ypreds[:, 60:120]
+    
+    weighted_mse = 0.5*K.sum(K.square((ytrue-mu)/K.exp(logsigma)),axis=1)
+    logsigma_trace = K.sum(logsigma, axis=1)
+
+    return K.mean(logsigma_trace + weighted_mse)
 
 def build_model(hp):
     alpha = hp.Float("leak", min_value = 0, max_value = .4)
@@ -25,7 +54,7 @@ def build_model(hp):
         if batch_norm:
             model.add(BatchNormalization())
         model.add(Dropout(dp_rate))
-    model.add(Dense(60, kernel_initializer='normal', activation='linear'))
+    model.add(Dense(120, kernel_initializer='normal', activation='linear'))
     initial_learning_rate = hp.Float("lr", min_value=1e-5, max_value=1e-2, sampling="log")
     optimizer = hp.Choice("optimizer", ["adam", "RMSprop", "RAdam", "QHAdam"])
     if optimizer == "adam":
@@ -36,7 +65,7 @@ def build_model(hp):
         optimizer = tfa.optimizers.RectifiedAdam(learning_rate = initial_learning_rate)
     elif optimizer == "QHAdam":
         optimizer = QHAdamOptimizer(learning_rate = initial_learning_rate, nu2=1.0, beta1=0.995, beta2=0.999)
-    model.compile(optimizer = optimizer, loss = 'mse', metrics = ["mse"])
+    model.compile(optimizer = optimizer, loss = gaussian_nll, metrics = ["mse"])
     return model
 
 def set_environment(num_gpus_per_node=4):
