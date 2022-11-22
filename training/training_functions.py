@@ -9,7 +9,7 @@ import tensorflow_addons as tfa
 from qhoptim.tf import QHAdamOptimizer
 import os
 
-def gaussian_nll(ytrue, ypreds):
+def diagonal_nll(y_true, y_pred):
     """Keras implmementation of multivariate Gaussian negative loglikelihood loss function. 
     This implementation implies diagonal covariance matrix and ignores constant term.
     
@@ -29,13 +29,16 @@ def gaussian_nll(ytrue, ypreds):
         model.compile(loss=gaussian_nll, optimizer='Adam') 
     
     """
-    mu = ypreds[:, 0:60]
-    logsigma = ypreds[:, 60:120]
-    
-    weighted_mse = 0.5*K.sum(K.square((ytrue-mu)/K.exp(logsigma)),axis=1)
+    mu = y_pred[:, 0:60]
+    logsigma = y_pred[:, 60:120]
+    weighted_mse = 0.5*K.sum(K.square((y_true-mu)/K.exp(logsigma)),axis=1)
     logsigma_trace = K.sum(logsigma, axis=1)
-
     return K.mean(logsigma_trace + weighted_mse)
+
+def mse_adjusted(y_true, y_pred):
+    mu = y_pred[:, 0:60]
+    eval = K.square(mu - y_true)
+    return K.mean(eval, axis = 1)
 
 def build_model(hp):
     alpha = hp.Float("leak", min_value = 0, max_value = .4)
@@ -65,7 +68,7 @@ def build_model(hp):
         optimizer = tfa.optimizers.RectifiedAdam(learning_rate = initial_learning_rate)
     elif optimizer == "QHAdam":
         optimizer = QHAdamOptimizer(learning_rate = initial_learning_rate, nu2=1.0, beta1=0.995, beta2=0.999)
-    model.compile(optimizer = optimizer, loss = gaussian_nll, metrics = ["mse"])
+    model.compile(optimizer = optimizer, loss = diagonal_nll, metrics = [mse_adjusted])
     return model
 
 def set_environment(num_gpus_per_node=4):
