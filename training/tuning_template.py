@@ -31,7 +31,7 @@ set_environment(NUM_GPUS_PER_NODE_HERE)
 
 tuner = kt.RandomSearch(
     hypermodel=build_model,
-    objective="val_mse",
+    objective=diagonal_nll,
     max_trials=MAX_TRIALS_HERE,
     executions_per_trial=1,
     overwrite=False,
