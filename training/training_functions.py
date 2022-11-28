@@ -1,3 +1,4 @@
+import tensorflow as tf
 from tensorflow import keras
 from keras.models import Sequential
 from keras.layers import Dense
@@ -26,12 +27,39 @@ def diagonal_nll(y_true, y_pred):
         negative loglikelihood averaged over samples (without constant term)
         
     This loss can then be used as a target loss for any keras model, e.g.:
-        model.compile(loss=gaussian_nll, optimizer='Adam') 
+        model.compile(loss=diagonal_nll, optimizer='Adam') 
     
     """
     mu = y_pred[:, 0:60]
     logsigma = y_pred[:, 60:120]
     weighted_mse = 0.5*K.sum(K.square((y_true-mu)/K.exp(logsigma)),axis=1)
+    logsigma_trace = K.sum(logsigma, axis=1)
+    return K.mean(logsigma_trace + weighted_mse)
+
+
+def diagonal_nll2(y_true, y_pred):
+    """Keras implmementation of multivariate Gaussian negative loglikelihood loss function. 
+    This implementation implies diagonal covariance matrix and ignores constant term.
+    
+    Parameters
+    ----------
+    ytrue: tf.tensor of shape [n_samples, n_dims]
+        ground truth values
+    ypreds: tf.tensor of shape [n_samples, n_dims*2]
+        predicted mu and logsigma values (e.g. by your neural network)
+        
+    Returns
+    -------
+    neg_log_likelihood: float
+        negative loglikelihood averaged over samples (without constant term)
+        
+    This loss can then be used as a target loss for any keras model, e.g.:
+        model.compile(loss=diagonal_nll2, optimizer='Adam') 
+    
+    """
+    mu = y_pred[:, 0:60]
+    logsigma = y_pred[:, 60:120]
+    weighted_mse = 0.5*K.sum(K.square((y_true-mu)/tf.math.expm1(logsigma)),axis=1)
     logsigma_trace = K.sum(logsigma, axis=1)
     return K.mean(logsigma_trace + weighted_mse)
 
@@ -68,7 +96,7 @@ def build_model(hp):
         optimizer = tfa.optimizers.RectifiedAdam(learning_rate = initial_learning_rate)
     elif optimizer == "QHAdam":
         optimizer = QHAdamOptimizer(learning_rate = initial_learning_rate, nu2=1.0, beta1=0.995, beta2=0.999)
-    model.compile(optimizer = optimizer, loss = diagonal_nll, metrics = [mse_adjusted])
+    model.compile(optimizer = optimizer, loss = diagonal_nll2, metrics = [mse_adjusted])
     return model
 
 def set_environment(num_gpus_per_node=4):
