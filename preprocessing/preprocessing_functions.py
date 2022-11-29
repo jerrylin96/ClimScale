@@ -75,6 +75,9 @@ def make_nn_input(spData, family, subsample = True, spacing = 8, contiguous = Tr
     hybm = spData["hybm"].values
     relhum = spData["RELHUM"].values
 
+    nnvbp = spData["NNVBP"].values
+    o3vmr = spData["O3VMR"].values
+
     p0 = np.array(list(set(p0)))
     print("loaded in data")
     newhum = np.zeros((spData["time"].shape[0],\
@@ -97,11 +100,14 @@ def make_nn_input(spData, family, subsample = True, spacing = 8, contiguous = Tr
     
     nntbp = np.moveaxis(nntbp[1:,:,:,:],0,1)
     nnqbp = np.moveaxis(nnqbp[1:,:,:,:],0,1)
-    ps = spData["NNPS"].values[np.newaxis,1:,:,:]
+    ps = ps[np.newaxis,1:,:,:]
     solin = spData["SOLIN"].values[np.newaxis,1:,:,:] 
     shflx = spData["SHFLX"].values[np.newaxis,:-1,:,:]
     lhflx = spData["LHFLX"].values[np.newaxis,:-1,:,:]
-    
+    nnvbp = np.moveaxis(nnvbp[1:,:,:,:],0,1)
+    o3vmr = np.moveaxis(o3vmr[1:,:,:,:],0,1)
+    coszrs = spData["COSZRS"].values[np.newaxis,1:,:,:]
+
     newhum = np.moveaxis(newhum[1:,:,:,:],0,1)    
     oldhum = np.moveaxis(relhum[1:,:,:,:],0,1)
 
@@ -111,7 +117,10 @@ def make_nn_input(spData, family, subsample = True, spacing = 8, contiguous = Tr
                                   ps, \
                                   solin, \
                                   shflx, \
-                                  lhflx))
+                                  lhflx, \
+                                  nnvbp, \
+                                  o3vmr, \
+                                  coszrs))
     
     elif family == "relative":
         nnInput = np.concatenate((nntbp, \
@@ -119,7 +128,10 @@ def make_nn_input(spData, family, subsample = True, spacing = 8, contiguous = Tr
                                   ps, \
                                   solin, \
                                   shflx, \
-                                  lhflx))              
+                                  lhflx, \
+                                  nnvbp, \
+                                  o3vmr, \
+                                  coszrs))              
     
     if not contiguous:
         nnInput = nnInput[:,:-1,:,:] #the last timestep of a run can have funky values
