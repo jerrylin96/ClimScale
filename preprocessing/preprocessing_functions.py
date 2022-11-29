@@ -204,7 +204,7 @@ def combine_arrays(*args, contiguous = True):
     return(np.concatenate((args), axis = 1))
 
 def reshape_input(nnData):
-    return nnData.ravel(order = 'F').reshape(64,-1,order = 'F')
+    return nnData.ravel(order = 'F').reshape(125,-1,order = 'F')
 
 def reshape_target(nnData):
     return nnData.ravel(order = 'F').reshape(60,-1,order = 'F')
