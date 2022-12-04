@@ -9,6 +9,7 @@ from keras import backend as K
 import tensorflow_addons as tfa
 from qhoptim.tf import QHAdamOptimizer
 import os
+import sys
 
 def diagonal_nll(y_true, y_pred):
     """Keras implmementation of multivariate Gaussian negative loglikelihood loss function. 
@@ -31,10 +32,13 @@ def diagonal_nll(y_true, y_pred):
     
     """
     mu = y_pred[:, 0:60]
-    logsigma = y_pred[:, 60:120]
-    weighted_mse = 0.5*K.sum(K.square((y_true-mu)/K.exp(logsigma)),axis=1)
-    logsigma_trace = K.sum(logsigma, axis=1)
-    return K.mean(logsigma_trace + weighted_mse)
+    twologsigma = y_pred[:, 60:120]
+    mse = K.square(y_true-mu)
+    weighting = K.exp(-1*twologsigma)
+    cost = twologsigma + mse*weighting
+    #tf.print("twologsigma: ", tf.math.reduce_max(tf.math.abs(twologsigma)), output_stream=sys.stdout)
+    #tf.print("mse: ", tf.math.reduce_max(tf.math.abs(mse)), output_stream=sys.stdout)
+    return K.mean(K.sum(cost, axis = 1))
 
 
 def diagonal_nll2(y_true, y_pred):
@@ -59,7 +63,10 @@ def diagonal_nll2(y_true, y_pred):
     """
     mu = y_pred[:, 0:60]
     twologsigma = y_pred[:, 60:120]
-    cost = twologsigma + K.square(y_true-mu)*K.exp(-1*twologsigma)
+    mse = K.square(y_true-mu)
+    #the weighting has been modified for stable training.
+    weighting = tf.math.expm1(-1*twologsigma) + 1
+    cost = twologsigma + mse*weighting
     return K.mean(K.sum(cost, axis = 1))
 
 def mse_adjusted(y_true, y_pred):
