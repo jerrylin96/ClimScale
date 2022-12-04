@@ -59,9 +59,7 @@ def diagonal_nll2(y_true, y_pred):
     """
     mu = y_pred[:, 0:60]
     twologsigma = y_pred[:, 60:120]
-    small_vec = K.exp(twologsigma)
-    numerator = twologsigma*small_vec + K.square(y_true-mu)
-    cost = numerator/small_vec
+    cost = twologsigma + K.square(y_true-mu)*K.exp(-1*twologsigma)
     return K.mean(K.sum(cost, axis = 1))
 
 def mse_adjusted(y_true, y_pred):
