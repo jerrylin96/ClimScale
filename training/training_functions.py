@@ -64,9 +64,9 @@ def diagonal_nll2(y_true, y_pred):
     mu = y_pred[:, 0:60]
     twologsigma = y_pred[:, 60:120]
     mse = K.square(y_true-mu)
-    #the weighting has been modified for stable training.
-    weighting = tf.math.expm1(-1*twologsigma) + 1
-    cost = twologsigma + mse*weighting
+    # hoping that a modified weighting could result in more stable training
+    weighting = K.exp(-1*twologsigma-1) + 1
+    cost = twologsigma + mse*weighting 
     return K.mean(K.sum(cost, axis = 1))
 
 def mse_adjusted(y_true, y_pred):
