@@ -35,7 +35,9 @@ def diagonal_nll(y_true, y_pred):
     twologsigma = y_pred[:, 60:102]
     mse = K.square(y_true-mu)
     weighting = K.exp(-1*twologsigma)
-    cost = K.sum(twologsigma, axis = 1) + K.sum(mse[:, 0:42]*weighting, axis = 1) + K.sum(mse, axis = 1)
+    split_weight = .999
+    cost = (1-split_weight)*(K.sum(twologsigma, axis = 1) + K.sum(mse[:, 0:42]*weighting, axis = 1))
+    cost = cost + split_weight*K.sum(mse, axis = 1)
     return K.mean(cost)
 
 def mse_adjusted(y_true, y_pred):
