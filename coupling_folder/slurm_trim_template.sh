@@ -6,7 +6,7 @@
 #SBATCH -N 1
 #SBATCH -n 64
 #SBATCH -t 5:30:00
-#SBATCH --mail-user=jerryl9@uci.edu
+#SBATCH --mail-user=aumudov@uci.edu
 #SBATCH --mail-type=ALL
 #SBATCH -A atm200007p
 

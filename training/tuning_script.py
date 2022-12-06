@@ -27,16 +27,16 @@ with open('training_data/val_input.npy', 'rb') as f:
 with open('training_data/val_target.npy', 'rb') as f:
     val_target = np.load(f)
 
-set_environment(NUM_GPUS_PER_NODE_HERE)
+set_environment(4)
 
 tuner = kt.RandomSearch(
     hypermodel=build_model,
     objective="val_loss",
-    max_trials=MAX_TRIALS_HERE,
+    max_trials=8,
     executions_per_trial=1,
     overwrite=False,
     directory="tuning_directory/",
-    project_name="PROJECT_NAME_HERE",
+    project_name="umudov_alt3",
 )
 
 kwargs = {'batch_size': 5000,
@@ -45,8 +45,7 @@ kwargs = {'batch_size': 5000,
           'shuffle': True
          }
 
-clr = CyclicLR()
 tuner.search(train_input, train_target, validation_data=(val_input, val_target), **kwargs, \
-             callbacks=[clr, callbacks.EarlyStopping('val_loss', patience=10)])
+             callbacks=[callbacks.EarlyStopping('val_loss', patience=10)])
 
 
