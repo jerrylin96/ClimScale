@@ -35,7 +35,9 @@ def diagonal_nll(y_true, y_pred):
     twologsigma = y_pred[:, 60:102]
     mse = K.square(y_true-mu)
     weighting = K.exp(-1*twologsigma)
-    cost = K.sum(twologsigma, axis = 1) + K.sum(mse[:, 0:42]*weighting, axis = 1) + K.sum(mse, axis = 1)
+    split_weight = .999
+    cost = (1-split_weight)*(K.sum(twologsigma, axis = 1) + K.sum(mse[:, 0:42]*weighting, axis = 1))
+    cost = cost + split_weight*K.sum(mse, axis = 1)
     return K.mean(cost)
 
 
@@ -54,7 +56,8 @@ def precision_loss(y_true, y_pred):
     cost2 = K.sum(K.square(r)/(sigmasquared + epsilon), axis = 1)
     cost3 = K.square(K.sum(r*u_vector, axis = 1))
     cost4 = K.sum(K.square(y_true-mu), axis = 1)
-    cost = cost0 + cost1 + cost2 + cost3 + cost4
+    split_weight = .999
+    cost = (1-split_weight)*(cost0 + cost1 + cost2 + cost3) + split_weight*cost4
     return K.mean(cost)
 
 def mse_adjusted(y_true, y_pred):
