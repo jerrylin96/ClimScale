@@ -32,43 +32,30 @@ def diagonal_nll(y_true, y_pred):
     
     """
     mu = y_pred[:, 0:60]
-    twologsigma = y_pred[:, 60:120]
+    twologsigma = y_pred[:, 60:102]
     mse = K.square(y_true-mu)
     weighting = K.exp(-1*twologsigma)
-    cost = twologsigma + mse*weighting
-    #tf.print("twologsigma: ", tf.math.reduce_max(tf.math.abs(twologsigma)), output_stream=sys.stdout)
-    #tf.print("mse: ", tf.math.reduce_max(tf.math.abs(mse)), output_stream=sys.stdout)
-    return K.mean(K.sum(cost, axis = 1))
+    cost = K.sum(twologsigma, axis = 1) + K.sum(mse[:, 0:42]*weighting, axis = 1) + K.sum(mse, axis = 1)
+    return K.mean(cost)
 
 
-def diagonal_nll2(y_true, y_pred):
-    """Keras implmementation of multivariate Gaussian negative loglikelihood loss function. 
-    This implementation implies diagonal covariance matrix and ignores constant term.
-    
-    Parameters
-    ----------
-    ytrue: tf.tensor of shape [n_samples, n_dims]
-        ground truth values
-    ypreds: tf.tensor of shape [n_samples, n_dims*2]
-        predicted mu and logsigma values (e.g. by your neural network)
-        
-    Returns
-    -------
-    neg_log_likelihood: float
-        negative loglikelihood averaged over samples (without constant term)
-        
-    This loss can then be used as a target loss for any keras model, e.g.:
-        model.compile(loss=diagonal_nll2, optimizer='Adam') 
-    
+def precision_loss(y_true, y_pred):
+    """
+    Predicts inverse of covariance matrix parameterized by diagonal and vector u. 
     """
     mu = y_pred[:, 0:60]
-    twologsigma = y_pred[:, 60:120]
-    mse = K.square(y_true-mu)
-    weighting = K.exp(-1*twologsigma)
-    cost = twologsigma + mse*weighting
-    #tf.print("twologsigma: ", tf.math.reduce_max(tf.math.abs(twologsigma)), output_stream=sys.stdout)
-    #tf.print("mse: ", tf.math.reduce_max(tf.math.abs(mse)), output_stream=sys.stdout)
-    return K.mean(K.sum(cost, axis = 1))
+    sigma = y_pred[:, 60:102]
+    u_vector = y_pred[:, 102:144]
+    r = y_true - mu
+    sigmasquared = K.square(sigma)
+    epsilon = 1e-6
+    cost0 = -1*tf.math.log(1 + K.sum(K.square(u_vector)*sigmasquared, axis = 1))
+    cost1 = 2*K.sum(tf.math.log(sigma), axis = 1)
+    cost2 = K.sum(K.square(r)/(sigmasquared + epsilon), axis = 1)
+    cost3 = K.square(K.sum(r*u_vector, axis = 1))
+    cost4 = K.sum(K.square(y_true-mu), axis = 1)
+    cost = cost0 + cost1 + cost2 + cost3 + cost4
+    return K.mean(cost)
 
 def mse_adjusted(y_true, y_pred):
     mu = y_pred[:, 0:60]
@@ -80,7 +67,7 @@ def build_model(hp):
     dp_rate = hp.Float("dropout", min_value = 0, max_value = .25)
     batch_norm = hp.Boolean("batch_normalization")
     model = Sequential()
-    hiddenUnits = hp.Int("hidden_units", min_value = 128, max_value = 512)
+    hiddenUnits = hp.Int("hidden_units", min_value = 256, max_value = 512)
     model.add(Dense(units = hiddenUnits, input_dim=64, kernel_initializer='normal'))
     model.add(LeakyReLU(alpha = alpha))
     if batch_norm:
@@ -92,7 +79,7 @@ def build_model(hp):
         if batch_norm:
             model.add(BatchNormalization())
         model.add(Dropout(dp_rate))
-    model.add(Dense(120, kernel_initializer='normal', activation='linear'))
+    model.add(Dense(144, kernel_initializer='normal', activation='linear'))
     initial_learning_rate = hp.Float("lr", min_value=1e-5, max_value=1e-2, sampling="log")
     optimizer = hp.Choice("optimizer", ["adam", "RMSprop", "RAdam", "QHAdam"])
     if optimizer == "adam":
@@ -103,7 +90,7 @@ def build_model(hp):
         optimizer = tfa.optimizers.RectifiedAdam(learning_rate = initial_learning_rate)
     elif optimizer == "QHAdam":
         optimizer = QHAdamOptimizer(learning_rate = initial_learning_rate, nu2=1.0, beta1=0.995, beta2=0.999)
-    model.compile(optimizer = optimizer, loss = diagonal_nll2, metrics = [mse_adjusted])
+    model.compile(optimizer = optimizer, loss = precision_loss, metrics = [mse_adjusted])
     return model
 
 def set_environment(num_gpus_per_node=4):
