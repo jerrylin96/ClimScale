@@ -50,7 +50,7 @@ def precision_loss(y_true, y_pred):
     u_vector = y_pred[:, 102:144]
     r = (y_true - mu)[:, 0:42]
     sigmasquared = K.square(sigma)
-    epsilon = 1e-6
+    epsilon = 1e-4
     cost0 = -1*tf.math.log(1 + K.sum(K.square(u_vector)*sigmasquared, axis = 1))
     cost1 = 2*K.sum(tf.math.log(sigma), axis = 1)
     cost2 = K.sum(K.square(r)/(sigmasquared + epsilon), axis = 1)
