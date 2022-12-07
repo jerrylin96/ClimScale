@@ -9,6 +9,7 @@ from keras.layers import BatchNormalization
 from keras.layers import LeakyReLU
 from keras.layers import Dropout
 from keras.activations import relu
+from keras.callbacks import LearningRateScheduler
 from tensorflow.keras.optimizers import SGD
 import keras_tuner as kt
 import os
@@ -45,7 +46,10 @@ kwargs = {'batch_size': 5000,
           'shuffle': True
          }
 
+#clr = CyclicLR()
+# Define a Keras callback to schedule the learning rate
+lr_scheduler = LearningRateScheduler(cyclic_lr)
 tuner.search(train_input, train_target, validation_data=(val_input, val_target), **kwargs, \
-             callbacks=[callbacks.EarlyStopping('val_loss', patience=10)])
+             callbacks=[lr_scheduler, callbacks.EarlyStopping('val_loss', patience=10)])
 
 

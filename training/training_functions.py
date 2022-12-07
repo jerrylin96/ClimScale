@@ -10,6 +10,9 @@ import tensorflow_addons as tfa
 from qhoptim.tf import QHAdamOptimizer
 import os
 import sys
+import numpy as np
+import math
+
 
 class CyclicLR(keras.callbacks.Callback):
 
@@ -67,6 +70,19 @@ class CyclicLR(keras.callbacks.Callback):
         
         K.set_value(self.model.optimizer.lr, self.clr())
 
+def cyclic_lr(epoch):
+    # Calculate the learning rate for the current epoch
+    max_lr = 0.001
+    base_lr = 0.0001
+    step_size = 100
+    cycle = math.floor(1 + epoch / (2 * step_size))
+    x = abs(epoch / step_size - 2 * cycle + 1)
+    lr = base_lr + (max_lr - base_lr) * max(0, (1 - x))
+
+    # Return the learning rate
+    return lr
+
+
 def diagonal_nll(y_true, y_pred):
     """Keras implmementation of multivariate Gaussian negative loglikelihood loss function. 
     This implementation implies diagonal covariance matrix and ignores constant term.
@@ -88,14 +104,33 @@ def diagonal_nll(y_true, y_pred):
     
     """
     mu = y_pred[:, 0:60]
-    twologsigma = y_pred[:, 60:120]
+    twologsigma = y_pred[:, 60:102]
     mse = K.square(y_true-mu)
     weighting = K.exp(-1*twologsigma)
-    cost = twologsigma + mse*weighting
-    #tf.print("twologsigma: ", tf.math.reduce_max(tf.math.abs(twologsigma)), output_stream=sys.stdout)
-    #tf.print("mse: ", tf.math.reduce_max(tf.math.abs(mse)), output_stream=sys.stdout)
-    return K.mean(K.sum(cost, axis = 1))
+    split_weight = .999
+    cost = (1-split_weight)*(K.sum(twologsigma, axis = 1) + K.sum(mse[:, 0:42]*weighting, axis = 1))
+    cost = cost + split_weight*K.sum(mse, axis = 1)
+    return K.mean(cost)
 
+
+def precision_loss(y_true, y_pred):
+    """
+    Predicts inverse of covariance matrix parameterized by diagonal and vector u. 
+    """
+    mu = y_pred[:, 0:60]
+    sigma = y_pred[:, 60:102]
+    u_vector = y_pred[:, 102:144]
+    r = (y_true - mu)[:, 0:42]
+    sigmasquared = K.square(sigma)
+    epsilon = 1e-4
+    cost0 = -1*tf.math.log(1 + K.sum(K.square(u_vector)*sigmasquared, axis = 1))
+    cost1 = 2*K.sum(tf.math.log(sigma + epsilon), axis = 1)
+    cost2 = K.sum(K.square(r)/(sigmasquared + epsilon), axis = 1)
+    cost3 = K.square(K.sum(r*u_vector, axis = 1))
+    cost4 = K.sum(K.square(y_true-mu), axis = 1)
+    split_weight = .999
+    cost = (1-split_weight)*(cost0 + cost1 + cost2 + cost3) + split_weight*cost4
+    return K.mean(cost)
 
 def diagonal_nll2(y_true, y_pred):
     """Keras implmementation of multivariate Gaussian negative loglikelihood loss function. 
@@ -136,6 +171,40 @@ def build_model(hp):
     dp_rate = hp.Float("dropout", min_value = 0, max_value = .25)
     batch_norm = hp.Boolean("batch_normalization")
     model = Sequential()
+    hiddenUnits = hp.Int("hidden_units", min_value = 256, max_value = 512)
+    model.add(Dense(units = hiddenUnits, input_dim=64, kernel_initializer='normal'))
+    model.add(LeakyReLU(alpha = alpha))
+    if batch_norm:
+        model.add(BatchNormalization())
+    model.add(Dropout(dp_rate))
+    for i in range(hp.Int("num_layers", min_value = 4, max_value = 11)):
+        model.add(Dense(units = hiddenUnits, kernel_initializer='normal'))
+        model.add(LeakyReLU(alpha = alpha))
+        if batch_norm:
+            model.add(BatchNormalization())
+        model.add(Dropout(dp_rate))
+    model.add(Dense(144, kernel_initializer='normal', activation='linear'))
+    initial_learning_rate = hp.Float("lr", min_value=1e-5, max_value=1e-2, sampling="log")
+    optimizer = hp.Choice("optimizer", ["adam", "RMSprop", "RAdam"])
+    if optimizer == "adam":
+        optimizer = keras.optimizers.Adam()
+        #optimizer = keras.optimizers.Adam(learning_rate = initial_learning_rate)
+    elif optimizer == "RMSprop":
+        optimizer = keras.optimizers.RMSprop()
+        #optimizer = keras.optimizers.RMSprop(learning_rate = initial_learning_rate)
+    elif optimizer == "RAdam":
+        optimizer = tfa.optimizers.RectifiedAdam()
+        #optimizer = tfa.optimizers.RectifiedAdam(learning_rate = initial_learning_rate)
+    elif optimizer == "QHAdam":
+        optimizer = QHAdamOptimizer(learning_rate = initial_learning_rate, nu2=1.0, beta1=0.995, beta2=0.999)
+    model.compile(optimizer = optimizer, loss = precision_loss, metrics = [mse_adjusted])
+    return model
+
+def build_model2(hp):
+    alpha = hp.Float("leak", min_value = 0, max_value = .4)
+    dp_rate = hp.Float("dropout", min_value = 0, max_value = .25)
+    batch_norm = hp.Boolean("batch_normalization")
+    model = Sequential()
     hiddenUnits = hp.Int("hidden_units", min_value = 128, max_value = 512)
     model.add(Dense(units = hiddenUnits, input_dim=64, kernel_initializer='normal'))
     model.add(LeakyReLU(alpha = alpha))
@@ -150,7 +219,7 @@ def build_model(hp):
         model.add(Dropout(dp_rate))
     model.add(Dense(120, kernel_initializer='normal', activation='linear'))
     initial_learning_rate = hp.Float("lr", min_value=1e-5, max_value=1e-2, sampling="log")
-    optimizer = hp.Choice("optimizer", ["adam", "RMSprop", "RAdam", "QHAdam"])
+    optimizer = hp.Choice("optimizer", ["adam", "RMSprop", "RAdam"])
     if optimizer == "adam":
         optimizer = keras.optimizers.Adam()
         #optimizer = keras.optimizers.Adam(learning_rate = initial_learning_rate)
