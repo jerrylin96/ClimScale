@@ -1,12 +1,30 @@
+import tensorflow as tf
 from tensorflow import keras
+from numpy import np
 from keras.models import Sequential
 from keras.layers import Dense
 from keras.layers import BatchNormalization
 from keras.layers import LeakyReLU
 from keras.layers import Dropout
+from keras import backend as K
 import tensorflow_addons as tfa
 from qhoptim.tf import QHAdamOptimizer
 import os
+
+out_scale = np.genfromtxt("norm_files/out_scale.txt", delimiter = ",")[np.newaxis, :]
+out_scale = tf.convert_to_tensor(out_scale)
+
+def mse_tphystnd(y_true, y_pred):
+    tphystnd_pred = y_pred[:, 0:30]/out_scale[0:30]
+    tphystnd_true = y_true[:, 0:30]/out_scale[0:30]
+    eval = K.square(tphystnd_pred - tphystnd_true)
+    return K.mean(eval, axis = 1)
+
+def mse_phq(y_true, y_pred):
+    phq_pred = y_pred[:, 30:60]/out_scale[30:60]
+    phq_true = y_true[:, 30:60]/out_scale[30:60]
+    eval = K.square(phq_pred - phq_true)
+    return K.mean(eval, axis = 1)
 
 def build_model(hp):
     alpha = hp.Float("leak", min_value = 0, max_value = .4)
@@ -36,7 +54,7 @@ def build_model(hp):
         optimizer = tfa.optimizers.RectifiedAdam(learning_rate = initial_learning_rate)
     elif optimizer == "QHAdam":
         optimizer = QHAdamOptimizer(learning_rate = initial_learning_rate, nu2=1.0, beta1=0.995, beta2=0.999)
-    model.compile(optimizer = optimizer, loss = 'mse', metrics = ["mse"])
+    model.compile(optimizer = optimizer, loss = 'mse', metrics = [mse_tphystnd, mse_phq])
     return model
 
 def set_environment(num_gpus_per_node=4):
