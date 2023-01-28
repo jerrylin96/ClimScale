@@ -53,7 +53,8 @@ def load_data(month, year, data_path):
     month = str(month).zfill(2)
     year = str(year).zfill(4)
     datasets = [data_path + x for x in datasets if "h1." + year + "-" + month in x]
-    return xr.open_mfdataset(datasets)
+    datasets = xr.open_mfdataset(datasets, decode_times=True, chunks={'time': 960, 'latitude':10, 'longitude':10}, parallel=True)
+    return datasets
 
 def sample_indices(size, spacing, fixed = True):
     numIndices = np.round(size/spacing)
@@ -65,35 +66,31 @@ def sample_indices(size, spacing, fixed = True):
         indices = indices[0:int(numIndices)]
     return indices
 
-def make_nn_input(spData, family, subsample = True, spacing = 8, contiguous = True, print_diagnostics = False):
-    nntbp = spData["NNTBP"].values
-    nnqbp = spData["NNQBP"].values
-    ps = spData["NNPS"].values
+def make_nn_input(spData, family, subsample = False, spacing = 8, contiguous = True, print_diagnostics = False):
     
-    p0 = spData["P0"].values
-    hyam = spData["hyam"].values
-    hybm = spData["hybm"].values
-    relhum = spData["RELHUM"].values
+    if subsample:
+        nnInput = spData[:,:,:,sample_indices(spData.shape[3], spacing, True)]
+        
+#     nntbp = spData["NNTBP"].values
+#     nnqbp = spData["NNQBP"].values
+#     ps = spData["NNPS"].values
+    
+#     p0 = spData["P0"].values
+#     hyam = spData["hyam"].values
+#     hybm = spData["hybm"].values
+#     relhum = spData["RELHUM"].values
 
-    p0 = np.array(list(set(p0)))
-    print("loaded in data")
-    newhum = np.zeros((spData["time"].shape[0],\
-                                  spData["lev"].shape[0], \
-                                  spData["lat"].shape[0], \
-                                  spData["lon"].shape[0]))
-    lats = spData["lat"]
-    lons = spData["lon"]
-    print("starting for loop")
-    for i in tqdm(range(len(lats))):
-        for j in range(len(lons)):
-            latIndex = i
-            lonIndex = j
-            R = 287.0
-            Rv = 461.0
-            p = p0 * hyam + ps[:, None, latIndex, lonIndex] * hybm # Total pressure (Pa)
-            T = nntbp[:, :, latIndex, lonIndex]
-            qv = nnqbp[:, :, latIndex, lonIndex]
-            newhum[:,:, latIndex, lonIndex] = Rv*p*qv/(R*esat(T))
+#     p0 = np.array(list(set(p0)))
+#     print("loaded in data")
+#     newhum = np.zeros((spData["time"].shape[0],\
+#                                   spData["lev"].shape[0], \
+#                                   spData["lat"].shape[0], \
+#                                   spData["lon"].shape[0]))
+    R = 287.0
+    Rv = 461.0
+    
+    p = spData['P0'] * spData['hyam'] + spData['NNPS'] * spData['hybm']
+    newhum = Rv*p*spData['NNQBP'] / (R*esat(spData['NNTBP']))
     
     nntbp = np.moveaxis(nntbp[1:,:,:,:],0,1)
     nnqbp = np.moveaxis(nnqbp[1:,:,:,:],0,1)
@@ -123,9 +120,6 @@ def make_nn_input(spData, family, subsample = True, spacing = 8, contiguous = Tr
     
     if not contiguous:
         nnInput = nnInput[:,:-1,:,:] #the last timestep of a run can have funky values
-        
-    if subsample:
-        nnInput = nnInput[:,:,:,sample_indices(nnInput.shape[3], spacing, True)]
         
     if print_diagnostics:
         print("nntbp")
@@ -163,6 +157,10 @@ def make_nn_input(spData, family, subsample = True, spacing = 8, contiguous = Tr
     return nnInput
 
 def make_nn_target(spData, subsample = True, spacing = 8, contiguous = True, print_diagnostics = False):
+    
+    if subsample:
+        spData = spData[:,:,:,sample_indices(spData.shape[3], spacing, True)]
+        
     tphystnd = spData["TPHYSTND"].values
     phq = spData["PHQ"].values
     
@@ -173,9 +171,6 @@ def make_nn_target(spData, subsample = True, spacing = 8, contiguous = True, pri
     if not contiguous:
         nnTarget = nnTarget[:,:-1,:,:] #the last timestep of a run can have funky values
     
-    if subsample:
-        nnTarget = nnTarget[:,:,:,sample_indices(nnTarget.shape[3], spacing, True)]
-        
     if print_diagnostics:
         print("tphystnd")
         print(tphystnd.shape)
@@ -311,5 +306,4 @@ def normalize_target_val(y_val, reshaped = True, save_files = False, save_path =
             np.save(f, np.float32(y_val))
             
     return y_val
-
 
