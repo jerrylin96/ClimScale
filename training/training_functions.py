@@ -32,16 +32,18 @@ def diagonal_nll(y_true, y_pred):
         model.compile(loss=diagonal_nll, optimizer='Adam') 
     
     """
+    # uncertainty terms are two log sigmas
     mu = y_pred[:, 0:60]
-    twologsigma = y_pred[:, 60:108]
+    heteroskedastic = y_pred[:, 60:108]
+    homoskedastic = y_pred[:, 108]
     mse = K.square(y_true-mu)
-    weighting1 = K.exp(-1*twologsigma)
+    weighting1 = K.exp(-1*heteroskedastic)
     vertical_levels = np.concatenate([np.arange(1, 30), np.arange(42, 60)])
-    cost1 = K.sum(twologsigma, axis = 1) + K.sum(mse[:, vertical_levels]*weighting1, axis = 1)
-    weighting2 = K.exp(-1*y_pred[:, 108])
-    cost2 = 12*y_pred[:, 108] + K.sum(mse[:, 30:42])*weighting2
+    cost1 = K.sum(heteroskedastic, axis = 1) + K.sum(mse[:, vertical_levels]*weighting1, axis = 1)
+    weighting2 = K.exp(-1*homoskedastic)
+    cost2 = 12*homoskedastic + K.sum(mse[:, 30:42])*weighting2
     cost = cost1 + cost2
-    # cost1 is heteroscedastic cost, cost2 is homoscedastic cost
+    # cost1 is heteroskedastic cost, cost2 is homoskedastic cost
     return K.mean(cost)
 
 def mse_adjusted(y_true, y_pred):
