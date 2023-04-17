@@ -7,6 +7,7 @@ from keras.layers import LeakyReLU
 from keras.layers import Dropout
 from keras import backend as K
 import tensorflow_addons as tfa
+import numpy as np
 from qhoptim.tf import QHAdamOptimizer
 import os
 import sys
@@ -32,12 +33,13 @@ def diagonal_nll(y_true, y_pred):
     
     """
     mu = y_pred[:, 0:60]
-    twologsigma = y_pred[:, 60:102]
+    twologsigma = y_pred[:, 60:108]
     mse = K.square(y_true-mu)
     weighting1 = K.exp(-1*twologsigma)
-    cost1 = K.sum(twologsigma, axis = 1) + K.sum(mse[:, 0:42]*weighting1, axis = 1)
-    weighting2 = K.exp(-1*y_pred[:, 103])
-    cost2 = 18*y_pred[:, 103] + K.sum(mse[:, 42:60])*weighting2
+    vertical_levels = np.concatenate([np.arange(1, 30), np.arange(42, 60)])
+    cost1 = K.sum(twologsigma, axis = 1) + K.sum(mse[:, vertical_levels]*weighting1, axis = 1)
+    weighting2 = K.exp(-1*y_pred[:, 108])
+    cost2 = 12*y_pred[:, 108] + K.sum(mse[:, 30:42])*weighting2
     cost = cost1 + cost2
     # cost1 is heteroscedastic cost, cost2 is homoscedastic cost
     return K.mean(cost)
@@ -64,7 +66,7 @@ def build_model(hp):
         if batch_norm:
             model.add(BatchNormalization())
         model.add(Dropout(dp_rate))
-    model.add(Dense(103, kernel_initializer='normal', activation='linear'))
+    model.add(Dense(109, kernel_initializer='normal', activation='linear'))
     initial_learning_rate = hp.Float("lr", min_value=1e-5, max_value=1e-2, sampling="log")
     optimizer = hp.Choice("optimizer", ["adam", "RMSprop", "RAdam", "QHAdam"])
     if optimizer == "adam":
