@@ -34,10 +34,12 @@ def diagonal_nll(y_true, y_pred):
     mu = y_pred[:, 0:60]
     twologsigma = y_pred[:, 60:102]
     mse = K.square(y_true-mu)
-    weighting = K.exp(-1*twologsigma)
-    split_weight = .999
-    cost = (1-split_weight)*(K.sum(twologsigma, axis = 1) + K.sum(mse[:, 0:42]*weighting, axis = 1))
-    cost = cost + split_weight*K.sum(mse, axis = 1)
+    weighting1 = K.exp(-1*twologsigma)
+    cost1 = K.sum(twologsigma, axis = 1) + K.sum(mse[:, 0:42]*weighting1, axis = 1)
+    weighting2 = K.exp(-1*y_pred[:, 103])
+    cost2 = 18*y_pred[:, 103] + K.sum(mse[:, 42:60])*weighting2
+    cost = cost1 + cost2
+    # cost1 is heteroscedastic cost, cost2 is homoscedastic cost
     return K.mean(cost)
 
 def mse_adjusted(y_true, y_pred):
@@ -62,7 +64,7 @@ def build_model(hp):
         if batch_norm:
             model.add(BatchNormalization())
         model.add(Dropout(dp_rate))
-    model.add(Dense(102, kernel_initializer='normal', activation='linear'))
+    model.add(Dense(103, kernel_initializer='normal', activation='linear'))
     initial_learning_rate = hp.Float("lr", min_value=1e-5, max_value=1e-2, sampling="log")
     optimizer = hp.Choice("optimizer", ["adam", "RMSprop", "RAdam", "QHAdam"])
     if optimizer == "adam":
