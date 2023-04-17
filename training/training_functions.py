@@ -38,7 +38,7 @@ def diagonal_nll(y_true, y_pred):
     homoskedastic = y_pred[:, 108]
     mse = K.square(y_true-mu)
     weighting1 = K.exp(-1*heteroskedastic)
-    vertical_levels = tf.concat([tf.range(1, 30), tf.range(42, 60)], axis=0)
+    vertical_levels = tf.concat([tf.range(0, 30), tf.range(42, 60)], axis=0)
     cost1 = K.sum(heteroskedastic, axis = 1) + K.sum(tf.gather(mse, vertical_levels, axis=1)*weighting1, axis = 1)
     weighting2 = K.exp(-1*homoskedastic)
     cost2 = 12*homoskedastic + K.sum(mse[:, 30:42])*weighting2
