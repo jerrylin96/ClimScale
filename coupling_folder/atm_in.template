@@ -37,7 +37,7 @@ iyear_ad                = 1950
 nhtfrq = 0,48
 mfilt = 1,1
 ! NN inputs then NN provisional outputs then ingredients for diag-SP corrections
-fincl2 = 'NNTBP:I','NNQBP:I','NNPS:I'
+fincl2 = 'NNTBSP:I','NNQBSP:I','NNPSBSP:I'
 
 inithist = "YEARLY"
 
